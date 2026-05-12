@@ -60,14 +60,14 @@ app.post("/registro", async (req, res) => {
             (err, epsResults) => {
                 if (err) return res.status(500).json({ error: "Error al verificar EPS: " + err.message });
                 if (!epsResults || epsResults.length === 0) {
-                    return res.status(400).json({ error: "EPS no encontrada. Verifica el Id o NIT de la EPS o registrala primero." });
+                    return res.status(400).json({ error: "EPS no encontrada. Verifica el Id o NIT de la EPS." });
                 }
                 const idEpsFk = epsResults[0].Id_Eps;
 
                 if (tipo === "paciente") {
                     connection.query(
-                        `INSERT INTO paciente 
-                        (id_paciente, Nombre_Paciente, Apellido_Paciente, Correo_Paciente, contraseña, Direccion_Paciente, Fecha_Nacimiento_Paciente, Id_Eps_Fk) 
+                        `INSERT INTO pacientes 
+                        (id_paciente, Nombre_Paciente, Apellido_Paciente, Correo_Paciente, contraseña, Direccion_Paciente, Fecha_Nacimiento_Paciente, Id_Eps_Fk)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                         [documento, nombre, apellido, correo, hashedPassword, direccion, fecha_nacimiento, idEpsFk],
                         (err) => {
@@ -105,7 +105,7 @@ app.post("/login", async (req, res) => {
     }
 
     connection.query(
-        "SELECT id_paciente as id, 'paciente' as tipo, Nombre_Paciente as nombre, Apellido_Paciente as apellido, contraseña FROM paciente WHERE Correo_Paciente = ?",
+        "SELECT id_paciente as id, 'paciente' as tipo, Nombre_Paciente as nombre, Apellido_Paciente as apellido, contraseña FROM pacientes WHERE Correo_Paciente = ?",
         [correo],
         async (err, results) => {
             if (err) return res.status(500).json({ error: "Error en BD" });

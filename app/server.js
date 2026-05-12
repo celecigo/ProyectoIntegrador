@@ -152,6 +152,100 @@ app.delete('/api/cita/:id', auth, (req, res) => {
     );
 });
 
+app.get('/api/doctores', (req, res) => {
+  const sql = `
+    SELECT 
+      d.Id_Doctor,
+      d.Nombre_Doctor,
+      d.Apellido_Doctor,
+      d.Correo_Doctor,
+      e.Nombre_Esp AS Especialidad,
+      eps.Nombre_Eps AS EPS
+    FROM doctor d
+    LEFT JOIN especialidad e ON d.Id_Especialidad_Fk = e.Id_Especialidad
+    LEFT JOIN eps ON d.Id_Eps_Fk = eps.Id_Eps
+    ORDER BY d.Nombre_Doctor;
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Error al obtener doctores:', err);
+      return res.status(500).json({ error: 'Error en el servidor' });
+    }
+    res.json(results);
+  });
+});
+
+
+app.get('/api/citas-doctor/:idDoctor', (req, res) => {
+  const { idDoctor } = req.params;
+  const sql = `
+    SELECT 
+      c.Id_cita,
+      p.Nombre_Paciente,
+      p.Apellido_Paciente,
+      c.Tipo_Cita,
+      c.especialidad,
+      c.fecha,
+      c.hora,
+      c.motivo
+    FROM cita c
+    JOIN paciente p ON c.Id_Paciente_Fk = p.Id_Paciente
+    WHERE c.Id_Doctor_Fk = ?
+    ORDER BY c.fecha, c.hora;
+  `;
+  db.query(sql, [idDoctor], (err, results) => {
+    if (err) {
+      console.error('Error al obtener citas:', err);
+      return res.status(500).json({ error: 'Error en el servidor' });
+    }
+    res.json(results);
+  });
+});
+
+
+app.get('/api/especialidades', (req, res) => {
+  db.query('SELECT Id_Especialidad, Nombre_Esp FROM especialidad', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al cargar especialidades' });
+    res.json(results);
+  });
+});
+
+
+app.get('/api/eps', (req, res) => {
+  db.query('SELECT Id_Eps, Nombre_Eps FROM eps', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al cargar EPS' });
+    res.json(results);
+  });
+});
+
+
+app.post('/api/doctor', (req, res) => {
+  const { 
+    Numero_Documento_Doctor, Nombre_Doctor, Apellido_Doctor, 
+    Correo_Doctor, Direccion_Doctor, Fecha_Nacimiento_Doctor,
+    Id_Especialidad_Fk, Id_Eps_Fk
+  } = req.body;
+
+  const sql = `
+    INSERT INTO doctor 
+    (Numero_Documento_Doctor, Nombre_Doctor, Apellido_Doctor, Correo_Doctor, 
+     Direccion_Doctor, Fecha_Nacimiento_Doctor, Id_Especialidad_Fk, Id_Eps_Fk)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(sql, [
+    Numero_Documento_Doctor, Nombre_Doctor, Apellido_Doctor, Correo_Doctor, 
+    Direccion_Doctor, Fecha_Nacimiento_Doctor, Id_Especialidad_Fk, Id_Eps_Fk
+  ], (err, result) => {
+    if (err) {
+      console.error('Error al registrar doctor:', err);
+      return res.status(500).json({ error: 'Error al insertar el doctor' });
+    }
+    res.json({ success: true, id: result.insertId });
+  });
+});
+
+
+
 // === INICIAR SERVIDOR ===
 const PORT = 3000;
 app.listen(PORT, () => {

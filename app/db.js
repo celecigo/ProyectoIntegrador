@@ -2,8 +2,9 @@ import mysql from "mysql2";
 
 const connection = mysql.createConnection({
   host: "localhost",  // Cambia si usas un servidor remoto
+  port: 3307,  // Puerto de MySQL en XAMPP
   user: "root",  // Tu usuario de MySQL
-  password: "hondazfe16c",  // Contraseña de MySQL
+  password: "",  // Contraseña de MySQL
   database: "arcdata"
 });
 
