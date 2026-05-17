@@ -336,7 +336,7 @@ app.post("/api/agendar-cita", autenticar, async (req, res) => {
                 error: "Faltan campos obligatorios"
             });
         }
-
+        console.log("ESPECIALIDAD RECIBIDA:", especialidad);
         // Buscar doctor
         const [doctor] = await connection.query(
             `SELECT d.id_doctor
