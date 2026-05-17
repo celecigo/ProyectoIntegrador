@@ -380,7 +380,6 @@ app.post("/api/agendar-cita", autenticar, async (req, res) => {
                 Id_Paciente_Fk,
                 Id_Doctor_Fk,
                 Tipo_Cita,
-                especialidad,
                 nombre_completo,
                 documento_identidad,
                 Telefono,
@@ -389,12 +388,11 @@ app.post("/api/agendar-cita", autenticar, async (req, res) => {
                 Fecha,
                 hora
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 req.user.id,
                 id_doctor,
                 tipoCita,
-                especialidad,
                 nombreCompleto,
                 documentoIdentidad,
                 telefono || "",
