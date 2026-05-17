@@ -280,7 +280,6 @@ app.get('/api/especialidades', async (req, res) => {
         });
     }
 });
-
 // === OBTENER EPS ===
 app.get('/api/eps', async (req, res) => {
 
@@ -554,74 +553,161 @@ app.get("/api/mis-citas", autenticar, async (req, res) => {
 });
 
 // === CITAS PARA EL CALENDARIO (FullCalendar) ===
-app.get("/api/citas-calendario", autenticar, (req, res) => {
-    connection.query(
-        `SELECT 
-            c.Id_cita,
-            c.Fecha,
-            c.hora,
-            c.Tipo_Cita,
-            c.nombre_completo,
-            d.Nombre_Doctor,
-            e.Nombre_Esp as especialidad
-         FROM cita c 
-         JOIN doctor d ON c.Id_Doctor_Fk = d.id_doctor
-         JOIN especialidad e ON d.Id_Especialidad_Fk = e.Id_Especialidad
-         WHERE c.Id_Paciente_Fk = ?
-         ORDER BY c.Fecha, c.hora`,
-        [req.user.id],
-        (err, results) => {
-            if (err) {
-                console.error("Error en /api/citas-calendario:", err);
-                return res.status(500).json({ error: err.message });
-            }
+app.get("/api/citas-calendario", autenticar, async (req, res) => {
 
-            // Convertir a formato FullCalendar
-            const eventos = results.map(cita => {
-                const fecha = cita.Fecha; // YYYY-MM-DD
-                const horaInicio = cita.hora; // HH:MM:SS
+    try {
 
-                // Calcular hora fin: +30 minutos (ajusta si usas otra duración)
-                const [h, m] = horaInicio.split(':');
-                const fechaFin = new Date(fecha);
-                fechaFin.setHours(parseInt(h), parseInt(m) + 30, 0); // +30 min
+        const [results] = await connection.query(
+            `SELECT
+                c.Id_cita,
+                c.Fecha,
+                c.hora,
+                c.Tipo_Cita,
+                c.motivo,
+                d.Nombre_Doctor,
+                d.Apellido_Doctor,
+                e.Nombre_Esp as especialidad
+             FROM cita c
+             JOIN doctor d
+                ON c.Id_Doctor_Fk = d.id_doctor
+             JOIN especialidad e
+                ON d.Id_Especialidad_Fk = e.Id_Especialidad
+             WHERE c.Id_Paciente_Fk = ?
+             ORDER BY c.Fecha ASC, c.hora ASC`,
+            [req.user.id]
+        );
 
-                const inicio = new Date(`${fecha}T${horaInicio}`);
-                const fin = fechaFin;
+        const eventos = results.map(cita => {
 
-                return {
-                    id: cita.Id_cita,
-                    title: `${cita.Tipo_Cita} - ${cita.Nombre_Doctor} (${cita.especialidad})`,
-                    start: inicio.toISOString(), // 2025-11-15T10:00:00
-                    end: fin.toISOString(),
-                    color: cita.Tipo_Cita === 'Primera Vez' ? '#e74c3c' : '#3498db',
-                    extendedProps: {
-                        nombre_completo: cita.nombre_completo,
-                        especialidad: cita.especialidad,
-                        motivo: cita.motivo || 'No especificado'
-                    }
-                };
-            });
+            const fecha =
+                cita.Fecha instanceof Date
+                    ? cita.Fecha.toISOString().split('T')[0]
+                    : cita.Fecha;
 
-            res.json(eventos);
-        }
-    );
+            return {
+
+                id: cita.Id_cita,
+
+                title:
+                    `${cita.especialidad} - Dr. ${cita.Nombre_Doctor}`,
+
+                start:
+                    `${fecha}T${cita.hora}`,
+
+                extendedProps: {
+
+                    tipoCita:
+                        cita.Tipo_Cita,
+
+                    motivo:
+                        cita.motivo,
+
+                    doctor:
+                        `${cita.Nombre_Doctor} ${cita.Apellido_Doctor}`,
+
+                    especialidad:
+                        cita.especialidad
+                }
+            };
+        });
+
+        res.json(eventos);
+
+    } catch(error){
+
+        console.error(
+            "CALENDARIO ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
+
 // === ELIMINAR CITA ===
-app.delete("/api/cita/:id", autenticar, (req, res) => {
-    const { id } = req.params;
+app.get("/api/cita/:id", autenticar, async (req, res) => {
 
-    connection.query(
-        "DELETE FROM cita WHERE Id_cita = ? AND Id_Paciente_Fk = ?",
-        [id, req.user.id],
-        (err, result) => {
-            if (err) return res.status(500).json({ error: err.message });
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: "Cita no encontrada o no autorizada" });
-            }
-            res.json({ success: true, message: "Cita eliminada" });
+    try {
+
+        const { id } = req.params;
+
+        const [results] = await connection.query(
+            `SELECT
+                c.*,
+                d.Nombre_Doctor,
+                d.Apellido_Doctor,
+                e.Nombre_Esp as especialidad
+             FROM cita c
+             JOIN doctor d
+                ON c.Id_Doctor_Fk = d.id_doctor
+             JOIN especialidad e
+                ON d.Id_Especialidad_Fk = e.Id_Especialidad
+             WHERE c.Id_cita = ?
+             AND c.Id_Paciente_Fk = ?`,
+            [id, req.user.id]
+        );
+
+        if (results.length === 0) {
+
+            return res.status(404).json({
+                error: "Cita no encontrada"
+            });
         }
-    );
-});
 
+        const cita = results[0];
+
+        const fecha =
+            cita.Fecha instanceof Date
+                ? cita.Fecha.toISOString().split('T')[0]
+                : cita.Fecha;
+
+        res.json({
+
+            id:
+                cita.Id_cita,
+
+            fecha,
+
+            hora:
+                cita.hora,
+
+            tipoCita:
+                cita.Tipo_Cita,
+
+            motivo:
+                cita.motivo,
+
+            especialidad:
+                cita.especialidad,
+
+            doctor:
+                `${cita.Nombre_Doctor} ${cita.Apellido_Doctor}`,
+
+            telefono:
+                cita.Telefono,
+
+            correo:
+                cita.Correo,
+
+            nombreCompleto:
+                cita.nombre_completo,
+
+            documento:
+                cita.documento_identidad
+        });
+
+    } catch(error){
+
+        console.error(
+            "DETALLE CITA ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
 app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));
