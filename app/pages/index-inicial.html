@@ -403,6 +403,29 @@
                 window.location.href = 'index.html';
             });
 
+            async function cargarEspecialidades() {
+                const select = document.getElementById('especialidad');
+                if (!select) return;
+
+                select.innerHTML = '<option value="">Seleccione una especialidad</option>';
+
+                try {
+                    const res = await fetch('/api/especialidades');
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const especialidades = await res.json();
+                    if (!Array.isArray(especialidades)) return;
+
+                    especialidades.forEach(esp => {
+                        const option = document.createElement('option');
+                        option.value = esp.nombre || esp.Nombre_Esp || esp.especialidad || '';
+                        option.textContent = esp.nombre || esp.Nombre_Esp || esp.especialidad || '';
+                        select.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Error cargando especialidades:', error);
+                }
+            }
+
             // Normalizador de campos (maneja mayúsculas/minúsculas devueltas por MySQL)
             function f(obj, ...keys) {
                 for (const k of keys) {
@@ -413,6 +436,8 @@
                 }
                 return undefined;
             }
+
+            await cargarEspecialidades();
 
             // === CALENDARIO ===
             let calendar = null;
