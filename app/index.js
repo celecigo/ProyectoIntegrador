@@ -306,6 +306,7 @@ app.get('/api/eps', async (req, res) => {
     }
 });
 
+console.log("ESPECIALIDAD RECIBIDA:", especialidad);
 // === AGENDAR CITA ===
 app.post("/api/agendar-cita", autenticar, async (req, res) => {
 
@@ -342,8 +343,9 @@ app.post("/api/agendar-cita", autenticar, async (req, res) => {
              FROM doctor d
              JOIN especialidad e
              ON d.Id_Especialidad_Fk = e.Id_Especialidad
-             WHERE e.Nombre_Esp = ?
-             LIMIT 1`,
+             WHERE LOWER(TRIM(e.Nombre_Esp)) =
+             LOWER(TRIM(?))
+                LIMIT 1`,
             [especialidad]
         );
 
@@ -627,7 +629,7 @@ app.get("/api/citas-calendario", autenticar, async (req, res) => {
 });
 
 // === ELIMINAR CITA ===
-app.get("/api/cita/:id", autenticar, async (req, res) => {
+app.delete("/api/cita/:id", autenticar, async (req, res) => {
 
     try {
 
