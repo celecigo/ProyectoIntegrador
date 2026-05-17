@@ -9,12 +9,10 @@ import bcrypt from "bcrypt";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = 3000;
-const SECRET_KEY = "arcdata_citas_2025";
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "pages")));
-
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "pages", "index.html"));
 });
@@ -35,7 +33,7 @@ function autenticar(req, res, next) {
     if (!authHeader) return res.status(401).json({ error: "Token requerido" });
 
     const token = authHeader.split(" ")[1];
-    jwt.verify(token, SECRET_KEY, (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) return res.status(403).json({ error: "Token inválido" });
         req.user = user;
         next();

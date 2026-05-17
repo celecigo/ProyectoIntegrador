@@ -1,19 +1,24 @@
 import mysql from "mysql2";
+import dotenv from "dotenv";
 
+dotenv.config();
+console.log(process.env.DB_HOST);
 const connection = mysql.createConnection({
-  host: "localhost",  // Cambia si usas un servidor remoto
-  port: 3307,  // Puerto de MySQL en XAMPP
-  user: "root",  // Tu usuario de MySQL
-  password: "",  // Contraseña de MySQL
-  database: "arcdata"
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
 });
 
 connection.connect((err) => {
-  if (err) {
-    console.error("❌ Error al conectar con MySQL:", err);
-  } else {
-    console.log("✅ Conexión exitosa a MySQL");
-  }
+
+    if (err) {
+        console.error("Error conectando a MySQL:", err);
+        return;
+    }
+
+    console.log("Conectado a MySQL Railway");
 });
 
 export default connection;
