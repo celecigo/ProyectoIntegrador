@@ -27,6 +27,26 @@ app.get("/index-inicial.html", (req, res) => {
     });
 });
 
+app.get("/testdb", async (req, res) => {
+
+    try {
+
+        const [rows] = await connection.query(
+            "SELECT * FROM eps LIMIT 1"
+        );
+
+        res.json(rows);
+
+    } catch(error){
+
+        console.error("TEST DB ERROR:", error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
 // === MIDDLEWARE DE AUTENTICACIÓN ===
 function autenticar(req, res, next) {
     const authHeader = req.headers.authorization;
