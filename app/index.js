@@ -306,7 +306,7 @@ app.get('/api/eps', async (req, res) => {
     }
 });
 
-console.log("ESPECIALIDAD RECIBIDA:", especialidad);
+
 // === AGENDAR CITA ===
 app.post("/api/agendar-cita", autenticar, async (req, res) => {
 
