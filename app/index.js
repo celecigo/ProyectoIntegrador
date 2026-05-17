@@ -116,84 +116,195 @@ app.post("/registro", async (req, res) => {
 
 // === LOGIN ===
 app.post("/login", async (req, res) => {
-    const { correo, contraseña } = req.body;
 
-    if (!correo || !contraseña) {
-        return res.status(400).json({ error: "Faltan credenciales" });
-    }
+    try {
 
-    connection.query(
-        "SELECT id_paciente as id, 'paciente' as tipo, Nombre_Paciente as nombre, Apellido_Paciente as apellido, contraseña FROM pacientes WHERE Correo_Paciente = ?",
-        [correo],
-        async (err, results) => {
-            if (err) return res.status(500).json({ error: "Error en BD" });
-            if (results.length > 0) {
-                return verificarUsuario(results[0], res, contraseña);
+        const { correo, contraseña } = req.body;
+
+        if (!correo || !contraseña) {
+            return res.status(400).json({
+                error: "Faltan credenciales"
+            });
+        }
+
+        // Buscar paciente
+        const [paciente] = await connection.query(
+            `SELECT 
+                id_paciente as id,
+                'paciente' as tipo,
+                Nombre_Paciente as nombre,
+                Apellido_Paciente as apellido,
+                contraseña
+             FROM pacientes
+             WHERE Correo_Paciente = ?`,
+            [correo]
+        );
+
+        if (paciente.length > 0) {
+
+            const user = paciente[0];
+
+            const match = await bcrypt.compare(
+                contraseña,
+                user.contraseña
+            );
+
+            if (!match) {
+                return res.status(401).json({
+                    error: "Contraseña incorrecta"
+                });
             }
 
-            connection.query(
-                "SELECT id_doctor as id, 'doctor' as tipo, Nombre_Doctor as nombre, Apellido_Doctor as apellido, NULL as contraseña FROM doctor WHERE Correo_Doctor = ?",
-                [correo],
-                async (err, results) => {
-                    if (err) return res.status(500).json({ error: "Error en BD" });
-                    if (results.length === 0) return res.status(400).json({ error: "Usuario no encontrado" });
-                    verificarUsuario(results[0], res, contraseña);
+            const token = jwt.sign(
+                {
+                    id: user.id,
+                    nombre: `${user.nombre} ${user.apellido}`,
+                    tipo: user.tipo
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: "1h"
                 }
             );
-        }
-    );
 
-    async function verificarUsuario(user, res, contraseña) {
-        if (user.contraseña) {
-            const match = await bcrypt.compare(contraseña, user.contraseña);
-            if (!match) return res.status(401).json({ error: "Contraseña incorrecta" });
+            return res.json({
+                message: "Login exitoso",
+                token,
+                user: {
+                    id: user.id,
+                    nombre: `${user.nombre} ${user.apellido}`,
+                    tipo: user.tipo
+                }
+            });
         }
-        const token = jwt.sign(
-            { id: user.id, nombre: `${user.nombre} ${user.apellido}`, tipo: user.tipo },
-            SECRET_KEY,
-            { expiresIn: "1h" }
+
+        // Buscar doctor
+        const [doctor] = await connection.query(
+            `SELECT 
+                id_doctor as id,
+                'doctor' as tipo,
+                Nombre_Doctor as nombre,
+                Apellido_Doctor as apellido
+             FROM doctor
+             WHERE Correo_Doctor = ?`,
+            [correo]
         );
+
+        if (doctor.length === 0) {
+            return res.status(404).json({
+                error: "Usuario no encontrado"
+            });
+        }
+
+        const user = doctor[0];
+
+        const token = jwt.sign(
+            {
+                id: user.id,
+                nombre: `${user.nombre} ${user.apellido}`,
+                tipo: user.tipo
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "1h"
+            }
+        );
+
         res.json({
             message: "Login exitoso",
             token,
-            user: { id: user.id, nombre: `${user.nombre} ${user.apellido}`, tipo: user.tipo }
+            user: {
+                id: user.id,
+                nombre: `${user.nombre} ${user.apellido}`,
+                tipo: user.tipo
+            }
+        });
+
+    } catch(error){
+
+        console.error("LOGIN ERROR:", error);
+
+        res.status(500).json({
+            error: error.message
         });
     }
 });
 
 // === OBTENER DOCTORES ===
-app.get("/api/doctores", (req, res) => {
-    connection.query(
-        `SELECT d.id_doctor, d.Nombre_Doctor, e.Nombre_Esp as Nombre_Especialidad
-         FROM doctor d
-         JOIN especialidad e ON d.Id_Especialidad_Fk = e.Id_Especialidad`,
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+app.get("/api/doctores", async (req, res) => {
+
+    try {
+
+        const [results] = await connection.query(
+            `SELECT 
+                d.id_doctor,
+                d.Nombre_Doctor,
+                e.Nombre_Esp as Nombre_Especialidad
+             FROM doctor d
+             JOIN especialidad e
+             ON d.Id_Especialidad_Fk = e.Id_Especialidad`
+        );
+
+        res.json(results);
+
+    } catch(error){
+
+        console.error(error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 // === OBTENER ESPECIALIDADES ===
-app.get('/api/especialidades', (req, res) => {
-    connection.query(
-        `SELECT Id_Especialidad as id, Nombre_Esp as nombre FROM especialidad`,
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+app.get('/api/especialidades', async (req, res) => {
+
+    try {
+
+        const [results] = await connection.query(
+            `SELECT 
+                Id_Especialidad as id,
+                Nombre_Esp as nombre
+             FROM especialidad`
+        );
+
+        res.json(results);
+
+    } catch(error){
+
+        console.error(error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 // === OBTENER EPS ===
-app.get('/api/eps', (req, res) => {
-    connection.query(
-        `SELECT Id_Eps as id, Nombre_Eps as nombre, Nit_Eps as nit FROM eps ORDER BY Nombre_Eps`,
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+app.get('/api/eps', async (req, res) => {
+
+    try {
+
+        const [results] = await connection.query(
+            `SELECT 
+                Id_Eps as id,
+                Nombre_Eps as nombre,
+                Nit_Eps as nit
+             FROM eps
+             ORDER BY Nombre_Eps`
+        );
+
+        res.json(results);
+
+    } catch(error){
+
+        console.error("EPS ERROR:", error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 // === AGENDAR CITA ===
