@@ -62,55 +62,161 @@ function autenticar(req, res, next) {
 
 // === REGISTRO ===
 app.post("/registro", async (req, res) => {
-    const { documento, nombre, apellido, correo, contraseña, direccion, fecha_nacimiento, nit_eps, especialidad, tipo } = req.body;
 
-    if (!documento || !nombre || !apellido || !correo || !contraseña || !tipo) {
-        return res.status(400).json({ error: "Faltan campos básicos" });
+    const {
+        documento,
+        nombre,
+        apellido,
+        correo,
+        contraseña,
+        direccion,
+        fecha_nacimiento,
+        nit_eps,
+        especialidad,
+        tipo
+    } = req.body;
+
+    if (
+        !documento ||
+        !nombre ||
+        !apellido ||
+        !correo ||
+        !contraseña ||
+        !tipo
+    ) {
+        return res.status(400).json({
+            error: "Faltan campos básicos"
+        });
     }
 
     try {
-        const hashedPassword = await bcrypt.hash(contraseña, 10);
 
-        // Antes de insertar, resolver el Id_Eps real en la tabla `eps`.
-        connection.query(
-            "SELECT Id_Eps FROM eps WHERE Id_Eps = ? OR Nit_Eps = ? LIMIT 1",
-            [nit_eps, nit_eps],
-            (err, epsResults) => {
-                if (err) return res.status(500).json({ error: "Error al verificar EPS: " + err.message });
-                if (!epsResults || epsResults.length === 0) {
-                    return res.status(400).json({ error: "EPS no encontrada. Verifica el Id o NIT de la EPS." });
-                }
-                const idEpsFk = epsResults[0].Id_Eps;
+        const hashedPassword =
+            await bcrypt.hash(
+                contraseña,
+                10
+            );
 
-                if (tipo === "paciente") {
-                    connection.query(
-                        `INSERT INTO pacientes 
-                        (id_paciente, Nombre_Paciente, Apellido_Paciente, Correo_Paciente, contraseña, Direccion_Paciente, Fecha_Nacimiento_Paciente, Id_Eps_Fk)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [documento, nombre, apellido, correo, hashedPassword, direccion, fecha_nacimiento, idEpsFk],
-                        (err) => {
-                            if (err?.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: "Documento o correo ya registrado" });
-                            if (err) return res.status(500).json({ error: "Error al registrar paciente: " + err.message });
-                            res.status(201).json({ message: "Paciente registrado" });
-                        }
-                    );
-                } else {
-                    connection.query(
-                        `INSERT INTO doctor 
-                        (id_doctor, Nombre_Doctor, Apellido_Doctor, Correo_Doctor, Id_Especialidad_Fk, Id_Eps_Fk, Direccion_Doctor, Fecha_Nacimiento_Doctor) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [documento, nombre, apellido, correo, especialidad, idEpsFk, direccion, fecha_nacimiento],
-                        (err) => {
-                            if (err?.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: "Documento o correo ya registrado" });
-                            if (err) return res.status(500).json({ error: "Error al registrar doctor: " + err.message });
-                            res.status(201).json({ message: "Doctor registrado" });
-                        }
-                    );
-                }
-            }
+        // Buscar EPS
+        const [epsResults] =
+            await connection.query(
+                `SELECT Id_Eps
+                 FROM eps
+                 WHERE Id_Eps = ?
+                 OR Nit_Eps = ?
+                 LIMIT 1`,
+                [nit_eps, nit_eps]
+            );
+
+        if (
+            !epsResults ||
+            epsResults.length === 0
+        ) {
+            return res.status(400).json({
+                error:
+                "EPS no encontrada"
+            });
+        }
+
+        const idEpsFk =
+            epsResults[0].Id_Eps;
+
+        // =====================
+        // PACIENTE
+        // =====================
+
+        if (tipo === "paciente") {
+
+            await connection.query(
+                `INSERT INTO pacientes
+                (
+                    id_paciente,
+                    Nombre_Paciente,
+                    Apellido_Paciente,
+                    Correo_Paciente,
+                    contraseña,
+                    Direccion_Paciente,
+                    Fecha_Nacimiento_Paciente,
+                    Id_Eps_Fk
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    documento,
+                    nombre,
+                    apellido,
+                    correo,
+                    hashedPassword,
+                    direccion,
+                    fecha_nacimiento,
+                    idEpsFk
+                ]
+            );
+
+            return res.status(201).json({
+                success: true,
+                message:
+                "Paciente registrado"
+            });
+        }
+
+        // =====================
+        // DOCTOR
+        // =====================
+
+        await connection.query(
+            `INSERT INTO doctor
+            (
+                id_doctor,
+                Nombre_Doctor,
+                Apellido_Doctor,
+                Correo_Doctor,
+                contraseña,
+                Id_Especialidad_Fk,
+                Id_Eps_Fk,
+                Direccion_Doctor,
+                Fecha_Nacimiento_Doctor
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                documento,
+                nombre,
+                apellido,
+                correo,
+                hashedPassword,
+                especialidad,
+                idEpsFk,
+                direccion,
+                fecha_nacimiento
+            ]
         );
-    } catch (err) {
-        res.status(500).json({ error: "Error interno: " + err.message });
+
+        return res.status(201).json({
+            success: true,
+            message: "Doctor registrado"
+        });
+
+    } catch(err){
+
+        console.error(
+            "REGISTRO ERROR:",
+            err
+        );
+
+        if (
+            err.code ===
+            "ER_DUP_ENTRY"
+        ) {
+            return res.status(400).json({
+                error:
+                "Documento o correo ya registrado"
+            });
+        }
+
+        return res.status(500).json({
+            error:
+            "Error interno: " +
+            err.message
+        });
     }
 });
 
