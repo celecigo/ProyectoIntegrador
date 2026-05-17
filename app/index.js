@@ -308,131 +308,249 @@ app.get('/api/eps', async (req, res) => {
 });
 
 // === AGENDAR CITA ===
-app.post("/api/agendar-cita", autenticar, (req, res) => {
-    const {
-        tipoCita, especialidad, fecha, hora,
-        nombreCompleto, documentoIdentidad, telefono, correo, motivo
-    } = req.body;
+app.post("/api/agendar-cita", autenticar, async (req, res) => {
 
-    if (!tipoCita || !especialidad || !fecha || !hora || !nombreCompleto || !documentoIdentidad) {
-        return res.status(400).json({ error: "Faltan campos obligatorios" });
-    }
+    try {
 
-    connection.query(
-    `SELECT id_doctor FROM doctor d 
-     JOIN especialidad e ON d.Id_Especialidad_Fk = e.Id_Especialidad 
-     WHERE e.Nombre_Esp = ? LIMIT 1`,
-        [especialidad],
-        (err, results) => {
-            if (err || results.length === 0) {
-                return res.status(400).json({ error: "Especialidad no disponible" });
-            }
+        const {
+            tipoCita,
+            especialidad,
+            fecha,
+            hora,
+            nombreCompleto,
+            documentoIdentidad,
+            telefono,
+            correo,
+            motivo
+        } = req.body;
 
-            const id_doctor = results[0].id_doctor;
-
-            connection.query(
-                "SELECT Id_cita FROM cita WHERE Id_Doctor_Fk = ? AND Fecha = ? AND hora = ?",
-                [id_doctor, fecha, hora],
-                (err, results) => {
-                    if (err) return res.status(500).json({ error: err.message });
-                    if (results.length > 0) {
-                        return res.status(400).json({ error: "Hora ocupada" });
-                    }
-
-                    connection.query(
-                        `INSERT INTO cita 
-                        (Id_Paciente_Fk, Id_Doctor_Fk, Tipo_Cita, especialidad, nombre_completo, 
-                         documento_identidad, Telefono, Correo, motivo, Fecha, hora)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            req.user.id, id_doctor, tipoCita, especialidad, nombreCompleto,
-                            documentoIdentidad, telefono || "", correo || "", motivo || "", fecha, hora
-                        ],
-                        (err, result) => {
-                            if (err) return res.status(500).json({ error: err.message });
-                            res.json({
-                                success: true,
-                                message: "Cita agendada",
-                                id_cita: result.insertId
-                            });
-                        }
-                    );
-                }
-            );
+        if (
+            !tipoCita ||
+            !especialidad ||
+            !fecha ||
+            !hora ||
+            !nombreCompleto ||
+            !documentoIdentidad
+        ) {
+            return res.status(400).json({
+                error: "Faltan campos obligatorios"
+            });
         }
-    );
+
+        // Buscar doctor
+        const [doctor] = await connection.query(
+            `SELECT d.id_doctor
+             FROM doctor d
+             JOIN especialidad e
+             ON d.Id_Especialidad_Fk = e.Id_Especialidad
+             WHERE e.Nombre_Esp = ?
+             LIMIT 1`,
+            [especialidad]
+        );
+
+        if (doctor.length === 0) {
+            return res.status(400).json({
+                error: "Especialidad no disponible"
+            });
+        }
+
+        const id_doctor = doctor[0].id_doctor;
+
+        // Validar hora ocupada
+        const [citaExistente] = await connection.query(
+            `SELECT Id_cita
+             FROM cita
+             WHERE Id_Doctor_Fk = ?
+             AND Fecha = ?
+             AND hora = ?`,
+            [id_doctor, fecha, hora]
+        );
+
+        if (citaExistente.length > 0) {
+            return res.status(400).json({
+                error: "Hora ocupada"
+            });
+        }
+
+        // Insertar cita
+        const [result] = await connection.query(
+            `INSERT INTO cita
+            (
+                Id_Paciente_Fk,
+                Id_Doctor_Fk,
+                Tipo_Cita,
+                especialidad,
+                nombre_completo,
+                documento_identidad,
+                Telefono,
+                Correo,
+                motivo,
+                Fecha,
+                hora
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                req.user.id,
+                id_doctor,
+                tipoCita,
+                especialidad,
+                nombreCompleto,
+                documentoIdentidad,
+                telefono || "",
+                correo || "",
+                motivo || "",
+                fecha,
+                hora
+            ]
+        );
+
+        res.json({
+            success: true,
+            message: "Cita agendada",
+            id_cita: result.insertId
+        });
+
+    } catch(error){
+
+        console.error("AGENDAR CITA ERROR:", error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 // === MIS CITAS ===
-app.get("/api/mis-citas", autenticar, (req, res) => {
-    connection.query(
-    `SELECT c.*, d.Nombre_Doctor, e.Nombre_Esp as especialidad
-     FROM cita c 
-     JOIN doctor d ON c.Id_Doctor_Fk = d.id_doctor
-     JOIN especialidad e ON d.Id_Especialidad_Fk = e.Id_Especialidad
-     WHERE c.Id_Paciente_Fk = ?
-     ORDER BY c.Fecha DESC, c.hora DESC`,
-        [req.user.id],
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            // Normalizar los campos para que el frontend pueda consumirlos de forma consistente
-            const normalized = results.map(r => ({
-                Id_cita: r.Id_cita || r.id_cita || r.id || null,
-                Id_Paciente_Fk: r.Id_Paciente_Fk || r.id_paciente_fk || r.Id_Paciente || req.user.id,
-                Id_Doctor_Fk: r.Id_Doctor_Fk || r.id_doctor_fk || r.Id_Doctor || null,
-                especialidad: r.especialidad || r.Nombre_Esp || null,
-                Tipo_Cita: r.Tipo_Cita || r.tipo_cita || r.tipo || null,
-                Fecha: r.Fecha || r.fecha || null,
-                hora: r.hora || r.Hora || r.hora_cita || null,
-                nombre_completo: r.nombre_completo || r.nombre || `${r.Nombre_Doctor || ''}`,
-                documento_identidad: r.documento_identidad || r.Documento_Identidad || null,
-                Telefono: r.Telefono || r.telefono || null,
-                Correo: r.Correo || r.correo || null,
-                motivo: r.motivo || r.Motivo || null,
-                Nombre_Doctor: r.Nombre_Doctor || null,
-                raw: r
-            }));
-            // Si no hay citas y se solicita modo debug, devolver datos de ejemplo para pruebas UI
-            if ((normalized.length === 0) && (req.query && req.query.debug === '1')) {
-                const today = new Date().toISOString().split('T')[0];
-                const sample = [
-                    {
-                        Id_cita: 999001,
-                        Id_Paciente_Fk: req.user.id,
-                        Id_Doctor_Fk: 1,
-                        especialidad: 'Cardiología',
-                        Tipo_Cita: 'Control',
-                        Fecha: today,
-                        hora: '10:00:00',
-                        nombre_completo: 'Paciente Demo',
-                        documento_identidad: '00000000',
-                        Telefono: '+000000000',
-                        Correo: 'demo@example.com',
-                        motivo: 'Cita de prueba para visualizar calendario',
-                        Nombre_Doctor: 'Dr. Demo'
-                    },
-                    {
-                        Id_cita: 999002,
-                        Id_Paciente_Fk: req.user.id,
-                        Id_Doctor_Fk: 2,
-                        especialidad: 'Pediatría',
-                        Tipo_Cita: 'Primera Vez',
-                        Fecha: today,
-                        hora: '14:30:00',
-                        nombre_completo: 'Paciente Demo 2',
-                        documento_identidad: '11111111',
-                        Telefono: '+000000001',
-                        Correo: 'demo2@example.com',
-                        motivo: 'Segunda cita de prueba',
-                        Nombre_Doctor: 'Dra. Demo'
-                    }
-                ];
-                return res.json(sample);
-            }
+app.get("/api/mis-citas", autenticar, async (req, res) => {
 
-            res.json(normalized);
+    try {
+
+        const [results] = await connection.query(
+            `SELECT 
+                c.*,
+                d.Nombre_Doctor,
+                e.Nombre_Esp as especialidad
+             FROM cita c
+             JOIN doctor d
+                ON c.Id_Doctor_Fk = d.id_doctor
+             JOIN especialidad e
+                ON d.Id_Especialidad_Fk = e.Id_Especialidad
+             WHERE c.Id_Paciente_Fk = ?
+             ORDER BY c.Fecha DESC, c.hora DESC`,
+            [req.user.id]
+        );
+
+        const normalized = results.map(r => ({
+
+            Id_cita:
+                r.Id_cita || r.id_cita || r.id || null,
+
+            Id_Paciente_Fk:
+                r.Id_Paciente_Fk ||
+                r.id_paciente_fk ||
+                r.Id_Paciente ||
+                req.user.id,
+
+            Id_Doctor_Fk:
+                r.Id_Doctor_Fk ||
+                r.id_doctor_fk ||
+                r.Id_Doctor ||
+                null,
+
+            especialidad:
+                r.especialidad ||
+                r.Nombre_Esp ||
+                null,
+
+            Tipo_Cita:
+                r.Tipo_Cita ||
+                r.tipo_cita ||
+                r.tipo ||
+                null,
+
+            Fecha:
+                r.Fecha ||
+                r.fecha ||
+                null,
+
+            hora:
+                r.hora ||
+                r.Hora ||
+                r.hora_cita ||
+                null,
+
+            nombre_completo:
+                r.nombre_completo ||
+                r.nombre ||
+                `${r.Nombre_Doctor || ''}`,
+
+            documento_identidad:
+                r.documento_identidad ||
+                r.Documento_Identidad ||
+                null,
+
+            Telefono:
+                r.Telefono ||
+                r.telefono ||
+                null,
+
+            Correo:
+                r.Correo ||
+                r.correo ||
+                null,
+
+            motivo:
+                r.motivo ||
+                r.Motivo ||
+                null,
+
+            Nombre_Doctor:
+                r.Nombre_Doctor ||
+                null,
+
+            raw: r
+        }));
+
+        // Datos demo opcionales
+        if (
+            normalized.length === 0 &&
+            req.query &&
+            req.query.debug === '1'
+        ) {
+
+            const today = new Date()
+                .toISOString()
+                .split('T')[0];
+
+            return res.json([
+                {
+                    Id_cita: 999001,
+                    Id_Paciente_Fk: req.user.id,
+                    Id_Doctor_Fk: 1,
+                    especialidad: 'Cardiología',
+                    Tipo_Cita: 'Control',
+                    Fecha: today,
+                    hora: '10:00:00',
+                    nombre_completo: 'Paciente Demo',
+                    documento_identidad: '00000000',
+                    Telefono: '+000000000',
+                    Correo: 'demo@example.com',
+                    motivo: 'Cita de prueba',
+                    Nombre_Doctor: 'Dr. Demo'
+                }
+            ]);
         }
-    );
+
+        res.json(normalized);
+
+    } catch(error){
+
+        console.error("MIS CITAS ERROR:", error);
+
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 // === CITAS PARA EL CALENDARIO (FullCalendar) ===
