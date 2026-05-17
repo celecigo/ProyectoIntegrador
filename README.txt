@@ -380,6 +380,15 @@ SEGURIDAD
 NOTAS IMPORTANTES PARA APP MÓVIL
 =================================
 
+REFERENCIAS DE PROYECTO PARA APP MÓVIL:
+- `app/index.js`: servidor principal y rutas API. Aquí están definidas las rutas clave como `/api/especialidades`, `/api/agendar-cita`, `/api/mis-citas`, `/api/cita/:id`.
+- `app/public/login.js`: lógica de login y manejo de token en frontend.
+- `app/pages/index-inicial.html`: flujo paciente, formulario de agendar cita, listado/ver/eliminar citas.
+- `app/pages/Doctor.html`: flujo doctor y visualización de citas.
+- `app/db.js`, `setup_db.js`, `scripts/seed_sample_data.js`: estructura de base de datos y datos iniciales.
+
+Nota: No se puede pasar un archivo HTML directamente a Android Studio como app nativa. En su lugar, use estos archivos como guía de API, endpoints, nombres de campos y comportamiento.
+
 CAMBIOS NECESARIOS:
 1. Reemplazar:
    - HTML/Tailwind → XML/Jetpack Compose (Android) o SwiftUI (iOS)
@@ -396,12 +405,12 @@ CAMBIOS NECESARIOS:
 3. Comunicación:
    - Base URL: http://localhost:3000 (cambiar en producción)
    - Content-Type: application/json
-   - Todos los requests usan HTTPS en producción
+   - Todos los requests deben usar HTTPS en producción
 
 4. Validaciones:
    - Mantener las mismas validaciones de campo
    - Mostrar errores del servidor al usuario
-   - Implementar offline-first (caché de citas)
+   - Implementar offline-first (caché de citas) si es posible
 
 5. Permisos necesarios (Android):
    - INTERNET
